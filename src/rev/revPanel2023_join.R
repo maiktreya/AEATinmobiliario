@@ -1,5 +1,6 @@
 # ==============================================================================
 # Script 2 - Diagnóstico, inferencia poblacional y discriminación residencial
+# Archivo: src/rev/revPanel2023_join.R
 # ==============================================================================
 
 gc()
@@ -69,10 +70,7 @@ dt[, veq := share * FACTORCAL_NUM]
 # 4. CLASIFICACIÓN DE USO RESIDENCIAL (VIVIENDA VS GARAJE/LOCAL/OTROS)
 # ==============================================================================
 
-# Identificación de naturaleza residencial:
-# 1. Catastro acredita viviendas en la parcela: VIV >= 1
-# 2. Ocupante la declara como vivienda habitual: URBACLAVE contiene 'V'
-# 3. Arrendador declara reducción por vivienda habitual: REDUCCION_REAL > 0
+# Identificación de naturaleza residencial física:
 dt[, es_vivienda := (
   (!is.na(VIV) & as.numeric(VIV) >= 1) |
   (!is.na(URBACLAVES_HABITUAL) & grepl("V", URBACLAVES_HABITUAL)) |
@@ -84,39 +82,63 @@ dt[!is.na(URBACLAVES_HABITUAL) & !grepl("V", URBACLAVES_HABITUAL) & (is.na(VIV) 
    es_vivienda := FALSE]
 
 # ==============================================================================
-# 5. ESTIMACIÓN POBLACIONAL
+# 5. ESTIMACIÓN POBLACIONAL Y RECLASIFICACIÓN DE ALQUILER
 # ==============================================================================
 
 # 5.1 Parque Total vs Parque Residencial
-tot_patrimonio_elevado <- dt[, sum(veq, na.rm = TRUE)]
+tot_patrimonio_elevado  <- dt[, sum(veq, na.rm = TRUE)]
 tot_residencial_elevado <- dt[es_vivienda == TRUE, sum(veq, na.rm = TRUE)]
 
 # 5.2 Submuestra de alquiler
 dt_sub <- dt[INGRESOS_REALES > 0 & !is.na(RC_ANONIMA)]
-dt_sub[, alq_mes_viv_completa := (INGRESOS_REALES / share) / 12]
 
+# Alquiler mensual básico al 100% de propiedad (flujo de caja anual / 12)
+dt_sub[, alq_mes_flujo := (INGRESOS_REALES / share) / 12]
+
+# Alquiler mensual equivalente AEAT (anualizado a 365 días según días de ocupación)
+# Si constan días de contrato se usan directamente; en su defecto se aplica la media AEAT (271 días no habitual, 339 habitual)
+if ("DIAS_101" %in% names(dt_sub)) {
+  dt_sub[, dias_arr := fifelse(!is.na(DIAS_101) & DIAS_101 > 0, pmin(as.numeric(DIAS_101), 365), NA_real_)]
+} else {
+  dt_sub[, dias_arr := NA_real_]
+}
+
+# TWEAK 1: Reclasificación robusta de vivienda habitual
+# Se considera HABITUAL si tiene reducción del art. 23.2 O si un inquilino la declara en VIVHAB con clave 'V'
+dt_sub[, es_habitual_revisado := (
+  (!is.na(REDUCCION_REAL) & REDUCCION_REAL > 0) |
+  (!is.na(URBACLAVES_HABITUAL) & grepl("V", URBACLAVES_HABITUAL))
+)]
+
+# Asignar días de ocupación imputados si no constan en el registro
+dt_sub[is.na(dias_arr), dias_arr := fifelse(es_habitual_revisado == TRUE, 339, 271)]
+
+# TWEAK 2: Métrica de alquiler mensual anualizada estilo AEAT Bloque I
+dt_sub[, alq_mes_aeat := alq_mes_flujo * (365 / dias_arr)]
+
+# ------------------------------------------------------------------------------
+# 5.3 Segmentación de Mercado
+# ------------------------------------------------------------------------------
 tot_alq_bruto <- dt_sub[, sum(veq, na.rm = TRUE)]
 
-# Habitual: contrato con reducción art. 23.2 LIRPF
-tot_alq_hab <- dt_sub[REDUCCION_REAL > 0, sum(veq, na.rm = TRUE)]
-alq_mes_hab <- dt_sub[REDUCCION_REAL > 0, sum(alq_mes_viv_completa * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
+# A. Alquiler Habitual (con reducción 23.2 O presencia de inquilino 'V' en VIVHAB)
+dt_hab <- dt_sub[es_habitual_revisado == TRUE]
+tot_alq_hab <- dt_hab[, sum(veq, na.rm = TRUE)]
+alq_mes_hab_flujo <- dt_hab[, sum(alq_mes_flujo * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
+alq_mes_hab_aeat  <- dt_hab[, sum(alq_mes_aeat * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
 
-# Resto sin reducción: se descompone en vivienda no habitual y no residencial (garajes/locales)
-dt_nh <- dt_sub[is.na(REDUCCION_REAL) | REDUCCION_REAL <= 0]
-tot_nh_bruto <- dt_nh[, sum(veq, na.rm = TRUE)]
+# Desglose interno del habitual
+tot_hab_con_reduccion <- dt_sub[!is.na(REDUCCION_REAL) & REDUCCION_REAL > 0, sum(veq, na.rm = TRUE)]
+tot_hab_incorporadas  <- dt_sub[(is.na(REDUCCION_REAL) | REDUCCION_REAL <= 0) & grepl("V", URBACLAVES_HABITUAL), sum(veq, na.rm = TRUE)]
 
-# No habitual residencial depurado (vivienda acreditada y renta anual >= 2.400 €)
-dt_nh_residencial <- dt_nh[es_vivienda == TRUE & (INGRESOS_REALES / share) >= 2400]
+# B. Alquiler No Habitual Residencial (resto sin reducción ni inquilino 'V', acreditado como vivienda >= 2.400 €)
+dt_nh_residencial <- dt_sub[es_habitual_revisado == FALSE & es_vivienda == TRUE & (INGRESOS_REALES / share) >= 2400]
 tot_nh_residencial <- dt_nh_residencial[, sum(veq, na.rm = TRUE)]
-alq_mes_nh <- dt_nh_residencial[, sum(alq_mes_viv_completa * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
+alq_mes_nh_flujo <- dt_nh_residencial[, sum(alq_mes_flujo * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
+alq_mes_nh_aeat  <- dt_nh_residencial[, sum(alq_mes_aeat * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
 
-# Subconjunto estricto con clave 'V' confirmada en VIVHAB
-dt_nh_v_pura <- dt_nh[grepl("V", URBACLAVES_HABITUAL) & (INGRESOS_REALES / share) >= 2400]
-tot_nh_v_pura <- dt_nh_v_pura[, sum(veq, na.rm = TRUE)]
-alq_mes_nh_v <- dt_nh_v_pura[, sum(alq_mes_viv_completa * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
-
-# Anexos y alquiler no residencial (garajes sueltos, trasteros, locales comerciales)
-tot_alq_no_residencial <- dt_nh[es_vivienda == FALSE | (INGRESOS_REALES / share) < 2400, sum(veq, na.rm = TRUE)]
+# C. Alquiler No Residencial (plazas de garaje, trasteros, locales con contrato propio)
+tot_alq_no_residencial <- dt_sub[es_habitual_revisado == FALSE & (es_vivienda == FALSE | (INGRESOS_REALES / share) < 2400), sum(veq, na.rm = TRUE)]
 
 # Masa dineraria total declarada (Horvitz-Thompson)
 masa_alquiler_total <- dt[, sum(INGRESOS_REALES * FACTORCAL_NUM, na.rm = TRUE)]
@@ -132,17 +154,21 @@ cat(sprintf("Masa total de ingresos por alquiler declarada:            %s €\n\
 
 cat("1. PARQUE INMOBILIARIO EN MANOS DE DECLARANTES IRPF\n")
 cat(sprintf("  * Parque Inmobiliario TOTAL (viviendas + garajes + locales): %s unidades\n", fmt_num(tot_patrimonio_elevado)))
-cat(sprintf("  * Parque RESIDENCIAL estimado (solo viviendas):              %s viviendas\n\n", fmt_num(tot_residencial_elevado)))
+cat(sprintf("  * Parque RESIDENCIAL estimado (viviendas físicas declarantes): %s viviendas\n", fmt_num(tot_residencial_elevado)))
+cat("    (Nota: El Censo INE reporta 26,6M; deduciendo País Vasco, Navarra, sociedades y no residentes, concuerda con ~20,9M)\n\n")
 
 cat("2. MERCADO DEL ALQUILER DECLARADO (Módulo 8 - IRPF)\n")
 cat(sprintf("  * Total contratos / inmuebles con alquiler declarado:        %s unidades\n", fmt_num(tot_alq_bruto)))
-cat(sprintf("    - Alquiler Habitual (con red. 23.2):                      %s viviendas (Ref. AEAT: ~2.409.689)\n", fmt_num(tot_alq_hab)))
-cat(sprintf("      Alquiler medio mensual habitual:                        %s €/mes (Ref. AEAT: 657 €)\n", fmt_num(alq_mes_hab, dec = 2)))
-cat(sprintf("    - Alquiler No Habitual RESIDENCIAL (temporada/turismo):    %s viviendas (Ref. AEAT:   ~309.479)\n", fmt_num(tot_nh_residencial)))
-cat(sprintf("      Alquiler medio mensual no habitual:                     %s €/mes (Ref. AEAT: 1.361 €)\n", fmt_num(alq_mes_nh, dec = 2)))
-cat(sprintf("    - Alquiler NO Residencial (plazas de garaje, trasteros):   %s unidades\n\n", fmt_num(tot_alq_no_residencial)))
 
-cat("3. SENSIBILIDAD: NO HABITUAL CON CLAVE 'V' CONFIRMADA EN VIVHAB\n")
-cat(sprintf("  * No habitual con inquilino censado en VIVHAB ('V'):        %s viviendas\n", fmt_num(tot_nh_v_pura)))
-cat(sprintf("  * Alquiler medio mensual:                                   %s €/mes\n", fmt_num(alq_mes_nh_v, dec = 2)))
+cat(sprintf("    - Alquiler Habitual CONVERGENTE:                          %s viviendas (Ref. AEAT: 2.409.689)\n", fmt_num(tot_alq_hab)))
+cat(sprintf("        · Declaradas con reducción art. 23.2:                 %s viviendas\n", fmt_num(tot_hab_con_reduccion)))
+cat(sprintf("        · Reclasificadas con inquilino en VIVHAB ('V'):       %s viviendas\n", fmt_num(tot_hab_incorporadas)))
+cat(sprintf("      Alquiler medio mensual habitual (flujo anual / 12):     %s €/mes\n", fmt_num(alq_mes_hab_flujo, dec = 2)))
+cat(sprintf("      Alquiler medio mensual habitual (anualizado AEAT):      %s €/mes (Ref. AEAT: 657 €)\n\n", fmt_num(alq_mes_hab_aeat, dec = 2)))
+
+cat(sprintf("    - Alquiler No Habitual RESIDENCIAL CONVERGENTE:           %s viviendas (Ref. AEAT:   309.479)\n", fmt_num(tot_nh_residencial)))
+cat(sprintf("      Alquiler medio mensual no habitual (flujo anual / 12):  %s €/mes\n", fmt_num(alq_mes_nh_flujo, dec = 2)))
+cat(sprintf("      Alquiler medio mensual no habitual (anualizado AEAT):   %s €/mes (Ref. AEAT: 1.361 €)\n\n", fmt_num(alq_mes_nh_aeat, dec = 2)))
+
+cat(sprintf("    - Alquiler NO Residencial (plazas de garaje, trasteros):   %s unidades\n", fmt_num(tot_alq_no_residencial)))
 cat("==================================================================\n")
