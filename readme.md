@@ -1,4 +1,4 @@
-# Panel 2023 de alquiler e inmuebles: qué hace el script 1 y por qué
+# Panel 2023 de alquiler e inmuebles
 
 ## Objetivo
 
