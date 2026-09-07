@@ -24,7 +24,7 @@ El repositorio dispone de dos versiones de generación del panel conjunto (segú
 * Genera el fichero: `out/2023/2023dt_panel_inmo.gz`.
 
 
-* **Versión 2 (Recomendada / Grano Titular–Inmueble con Copropiedad)**: [`src/joint/getPanel2023_join.v2.R`](https://www.google.com/search?q=src/joint/getPanel2023_join.v2.R)
+* **Versión 2 (Recomendada / Grano Titular–Inmueble con Copropiedad)**: [`src/joint/getPanel2023_join.v2.R`](src/joint/getPanel2023_join.v2.R)
 * Agrega de forma determinista y sin pérdida de información los ocupantes de `VIVHAB` (`N_OCUPANTES_VIVHAB`, `URBACLAVES_HABITUAL`) e `INM_CARACT`.
 * Consolida títulos y derechos múltiples de un mismo declarante sobre un mismo inmueble, totalizando **5.557.238 filas**.
 * Incorpora métricas de cuota atribuida (`VALCAT_CUOTA`, `VIV_METROS_CUOTA`), agregados totales del inmueble (`INGRESOS_INTEGROS_TOTAL_INMUEBLE`) y el flag de aislamiento del parque físico `FLAG_INMUEBLE_UNICO`.
@@ -67,7 +67,7 @@ En la declaración de IRPF, un mismo arrendador puede presentar varias líneas p
 
 ### Integración de Ocupación sin Pérdida de Información (`VIVHAB`)
 
-`VIVHAB` refleja a la persona que reside habitualmente en el inmueble (frecuentemente el inquilino o el propietario residente). En [`src/joint/getPanel2023_join.v2.R`](https://www.google.com/search?q=src/joint/getPanel2023_join.v2.R), las filas se agregan a nivel `RC_ANONIMA` antes de la unión para preservar el volumen de hogares sin inflar las filas de los propietarios:
+`VIVHAB` refleja a la persona que reside habitualmente en el inmueble (frecuentemente el inquilino o el propietario residente). En [`src/joint/getPanel2023_join.v2.R`](src/joint/getPanel2023_join.v2.R), las filas se agregan a nivel `RC_ANONIMA` antes de la unión para preservar el volumen de hogares sin inflar las filas de los propietarios:
 
 * `N_OCUPANTES_VIVHAB`: Conteo exacto de personas que declararon dicho inmueble como residencia habitual.
 * `URBACLAVES_HABITUAL`: Concatenación de las claves catastrales de uso observadas (p. ej., `V` para vivienda, `A` para anexos).
@@ -81,8 +81,8 @@ Se verificó empíricamente mediante diagnóstico sobre el total de las 847.553 
 
 El fichero oficial contiene **5.678.026 registros**, correspondientes a títulos legales o sub-periodos temporales de tenencia.
 
-* En [`src/joint/getPanel2023_join.R`](https://www.google.com/search?q=src/joint/getPanel2023_join.R), se preservan todas las líneas individuales de derechos.
-* En [`src/joint/getPanel2023_join.v2.R`](https://www.google.com/search?q=src/joint/getPanel2023_join.v2.R), las participaciones de un mismo contribuyente sobre un mismo inmueble se consolidan a nivel `(IDENPER, RC_ANONIMA)`, totalizando **5.557.238 filas** (reducción exacta de 120.788 títulos secundarios). Se preserva el desglose del tipo de derecho en `URBACODERE` y el número de títulos en `N_TITULOS_IDENPER`.
+* En [`src/joint/getPanel2023_join.R`](src/joint/getPanel2023_join.R), se preservan todas las líneas individuales de derechos.
+* En [`src/joint/getPanel2023_join.v2.R`](src/joint/getPanel2023_join.v2.R), las participaciones de un mismo contribuyente sobre un mismo inmueble se consolidan a nivel `(IDENPER, RC_ANONIMA)`, totalizando **5.557.238 filas** (reducción exacta de 120.788 títulos secundarios). Se preserva el desglose del tipo de derecho en `URBACODERE` y el número de títulos en `N_TITULOS_IDENPER`.
 
 ### Protección de Claves Ausentes (Centinelas NA)
 
@@ -186,8 +186,8 @@ parque_alquiler <- dt[FLAG_INMUEBLE_UNICO == TRUE & INGRESOS_INTEGROS_TOTAL_INMU
 La comparación entre ambas parametrizaciones arroja las siguientes conclusiones:
 
 * **Registros Totales del Panel**:
-* v1 ([`src/joint/getPanel2023_join.R`](https://www.google.com/search?q=src/joint/getPanel2023_join.R)): 5.678.026 filas.
-* v2 ([`src/joint/getPanel2023_join.v2.R`](https://www.google.com/search?q=src/joint/getPanel2023_join.v2.R)): 5.557.238 filas.
+* v1 ([`src/joint/getPanel2023_join.R`](src/joint/getPanel2023_join.R)): 5.678.026 filas.
+* v2 ([`src/joint/getPanel2023_join.v2.R`](src/joint/getPanel2023_join.v2.R)): 5.557.238 filas.
 
 
 * **Inmuebles identificados con `RC_ANONIMA` válida**: 3.173.648 en v2 (frente a 3.294.436 en v1; la diferencia son exactamente los 120.788 títulos secundarios agrupados).
@@ -196,7 +196,34 @@ La comparación entre ambas parametrizaciones arroja las siguientes conclusiones
 * En la muestra general de inmuebles: **25% con presencia en VIVHAB** (75% NAs).
 * En la submuestra de inmuebles alquilados: **23% con presencia en VIVHAB** (77% NAs).
 
-
+```r
+r$> source("c:\\Users\\70254057\\Desktop\\basic-hub\\AEATinmobiliario\\src\
+    \rev\\revPanel2023_join.R", encoding = "UTF-8")
+|--------------------------------------------------|
+|==================================================|
+[1] "total prop. inmobiliarias panel:  5678026"
+[1] "total prop. inmobiliarias panel CON RC_ANONIMA:  3294436"
+[1] "total prop. inmobiliarias submuestra inmuebles alquilados:  388555"
+[1] "Porcentaje de NAs sobre muestra de inmuebles: 0.75"
+[1] "Porcentaje de NAs sobre submuestra inmuebles alquilados: 0.77"
+[1] "Porcentaje de NAs sobre RC_ANONIMA: 0.42"
+[1] "no aparece en VIVHAB en absoluto: 0.77"
+[1] "aparece en VIVHAB con RC_ANONIMA válida: 0.23"
+[1] "aparece con codigo de uso valido 0.23"
+r$> source("c:\\Users\\70254057\\Desktop\\basic-hub\\AEATinmobiliario\\src\
+    \rev\\revPanel2023_join.v2.R", encoding = "UTF-8")
+|--------------------------------------------------|
+|==================================================|
+[1] "total prop. inmobiliarias panel:  5557238"
+[1] "total prop. inmobiliarias panel CON RC_ANONIMA:  3173648"
+[1] "total prop. inmobiliarias submuestra inmuebles alquilados:  377992"
+[1] "Porcentaje de NAs sobre muestra de inmuebles: 0.75"
+[1] "Porcentaje de NAs sobre submuestra inmuebles alquilados: 0.77"
+[1] "Porcentaje de NAs sobre RC_ANONIMA: 0.43"
+[1] "no aparece en VIVHAB en absoluto: 0.77"
+[1] "aparece en VIVHAB con RC_ANONIMA válida: 0.23"
+[1] "aparece con codigo de uso valido 0.23"
+```
 
 ### Justificación Normativa y Fiscal de la Cobertura en `VIVHAB`
 
