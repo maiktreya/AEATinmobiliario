@@ -18,7 +18,7 @@ El repositorio dispone de dos versiones de generación del panel conjunto (segú
 
 ### Scripts de Generación del Panel Conjunto
 
-* **Versión 1 (Línea Base / Grano Título Registral)**: [`src/joint/getPanel2023_join.R`](https://www.google.com/search?q=src/joint/getPanel2023_join.R)
+* **Versión 1 (Línea Base / Grano Título Registral)**: [`src/joint/getPanel2023_join.R`](src/joint/getPanel2023_join.R)
 * Mantiene íntegros los **5.678.026 registros** originales de `INM_PR` sin consolidar títulos intra-anuales.
 * Controla la memoria deduplicando `VIVHAB` e `INM_CARACT` mediante selección directa del primer registro por `RC_ANONIMA`.
 * Genera el fichero: `out/2023/2023dt_panel_inmo.gz`.
