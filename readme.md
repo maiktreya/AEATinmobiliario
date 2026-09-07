@@ -299,34 +299,6 @@ La reclasificación de contratos residenciales sin reducción fiscal pero con in
 
 * **Referencia oficial AEAT (1.361,00 €/mes)**: La AEAT calcula la tarifa media ponderando contrato a contrato con sus **días efectivos individuales de alquiler**[cite: 6, 8]. Debido a la desigualdad de Jensen en ratios no lineales ($\mathbb{E}[X/Y] \neq \mathbb{E}[X]/\mathbb{E}[Y]$), las estancias turísticas cortas con alta rotación (60–120 días y precios/día elevados) elevan fuertemente la media ponderada por encima de la imputación lineal a 271 días[cite: 6, 8].
 
----
-
-```python
-# Verification of adjustment rates (percentages)
-r_hab = 2333149 / 2409689 * 100
-r_nohab = 297473 / 309479 * 100
-r_renta_hab = 688.77 / 657.00 * 100
-r_renta_nohab = 1059.65 / 1361.00 * 100
-r_masa = 26488 / 26500 * 100
-
-print(f"Alquiler Habitual: {r_hab:.1f}%")
-print(f"Alquiler No Habitual: {r_nohab:.1f}%")
-print(f"Renta Media Habitual: {r_renta_hab:.1f}%")
-print(f"Renta Media No Habitual: {r_renta_nohab:.1f}%")
-print(f"Masa Agregada: {r_masa:.1f}%")
-
-
-```
-
-```text
-Alquiler Habitual: 96.8%
-Alquiler No Habitual: 96.1%
-Renta Media Habitual: 104.8%
-Renta Media No Habitual: 77.9%
-Masa Agregada: 100.0%
-
-
-```
 
 **Diagnóstico de la Ejecución Final**
 
