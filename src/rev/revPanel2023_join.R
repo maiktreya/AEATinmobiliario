@@ -28,10 +28,11 @@ dt <- fread("out/2023/2023dt_panel_inmo.gz")
 # "RRII"): a diferencia del antiguo RENTA_ALQ (persona/hogar, y ademas con
 # posiciones incorrectas), aqui cada fila solo entra si ESE arrendador declaro
 # alquiler por ESE RC_ANONIMA concreto.
-dt_sub <- subset(dt, as.numeric(INGRESOS_INTEGROS) > 0)
+dt_sub <- subset(dt, as.numeric(INGRESOS_INTEGROS) > 0 & !is.na(RC_ANONIMA))
 
 # Total propiedades inmobiliarias en la muestra
 print(paste("total prop. inmobiliarias panel: ", nrow(dt)))
+print(paste("total prop. inmobiliarias panel CON RC_ANONIMA: ", nrow(dt[!is.na(RC_ANONIMA)])))
 
 # Total propiedades inmobiliarias en la submuestra de inmuebles alquilados
 print(paste("total prop. inmobiliarias submuestra inmuebles alquilados: ", nrow(dt_sub)))
@@ -45,9 +46,11 @@ print(paste("total prop. inmobiliarias submuestra inmuebles alquilados: ", nrow(
 # habitual ese anyo).
 ratio_a <- dt[is.na(URBACLAVE), .N] / nrow(dt)
 ratio_b <- dt_sub[is.na(URBACLAVE), .N] / nrow(dt_sub)
+ratio_c <- dt[is.na(RC_ANONIMA), .N] / nrow(dt)
 
 print(paste("Porcentaje de NAs sobre muestra de inmuebles:", round(ratio_a, 2)))
 print(paste("Porcentaje de NAs sobre submuestra inmuebles alquilados:", round(ratio_b, 2)))
+print(paste("Porcentaje de NAs sobre RC_ANONIMA:", round(ratio_c, 2)))
 
 # ------------------------------------------------------------------------------
 # Mismo desglose usando el flag booleano IN_VIVHAB en lugar de NA en texto.
@@ -59,9 +62,11 @@ print(paste("Porcentaje de NAs sobre submuestra inmuebles alquilados:", round(ra
 # exactamente con is.na(URBACLAVE) dentro del mismo subconjunto.
 # ------------------------------------------------------------------------------
 ratio_d <- dt_sub[IN_VIVHAB == FALSE, .N] / nrow(dt_sub) # no aparece en VIVHAB en absoluto
+ratio_e <- dt_sub[!is.na(URBACLAVE), .N] / nrow(dt_sub) # aparece en VIVHAB con RC_ANONIMA válida
 ratio_f <- dt_sub[IN_VIVHAB == TRUE & URBACLAVE != "", .N] / nrow(dt_sub) # aparece con codigo de uso valido
 
 print(paste("no aparece en VIVHAB en absoluto:", round(ratio_d, 2)))
+print(paste("aparece en VIVHAB con RC_ANONIMA válida:", round(ratio_e, 2)))
 print(paste("aparece con codigo de uso valido", round(ratio_f, 2)))
 # Nota: ratio_d + ratio_f no tiene por que sumar 1 -- falta el caso intermedio
 # (aparece en VIVHAB pero URBACLAVE viene vacio: IN_VIVHAB==TRUE & URBACLAVE==""),
@@ -77,3 +82,4 @@ print(paste("aparece con codigo de uso valido", round(ratio_f, 2)))
 # una con "V" (la vivienda) y otra con el codigo del anexo (garaje/trastero).
 # Ver README para el detalle y la comprobacion empirica realizada.
 # ------------------------------------------------------------------------------
+
