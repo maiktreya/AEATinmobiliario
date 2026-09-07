@@ -172,7 +172,7 @@ Variables de la tabla maestra final (5.557.238 filas):
 
 Para realizar inferencia sobre el parque inmobiliario y los arrendamientos a partir de la muestra estratificada de declarantes, se aplica el método GWSM (*Generalized Weight Share Method*):
 
-$$\text{veq}_i = \text{share}_i \times \text{FACTORCAL}_i = \left(\frac{\text{URBAPORBIN}_i}{100}\right) \times \text{FACTORCAL}_i$$
+$$\text{veq}_i = \text{share}_i \text{FACTORCAL}_i = \left(\frac{\text{URBAPORBIN}_i}{100}\right) \times \text{FACTORCAL}_i$$
 
 ### Correcciones Técnicas Implementadas
 
