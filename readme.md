@@ -178,14 +178,6 @@ Option 1: Standard display block (recommended)
 Leave an empty line before and after, and place $$ on separate lines:
 (Generalized Weight Share Method):
 
-$$
-\text{veq}_i = \text{share}_i \times \text{FACTORCAL}_i = \left(\frac{\text{URBAPORBIN}_i}{100}\right) \times \text{FACTORCAL}_i
-$$
-
-**Escalado adaptativo de FACTORCAL**:
-
-Option 2: Explicit math code block (failsafe)
-GitHub natively supports ```math code fences, which prevents GitHub Flavored Markdown from misinterpreting underscores (_) as italic markdown:
 ```math
 \text{veq}_i = \text{share}_i \times \text{FACTORCAL}_i = \left(\frac{\text{URBAPORBIN}_i}{100}\right) \times \text{FACTORCAL}_i
 ```
