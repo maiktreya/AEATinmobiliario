@@ -1,148 +1,229 @@
-# ==============================================================================
-# Script 2 - Diagnóstico, inferencia poblacional y discriminación residencial
-# ==============================================================================
+library(magrittr)
+library(readr)
+library(data.table)
 
 gc()
-rm(list = ls())
+sel_year  <- 2023
+data_path <- paste0("data/", sel_year, "/")
 
-library(data.table)
-library(survey)
-
-# 1. Cargar la tabla consolidada a nivel titular-inmueble
-dt <- fread("out/2023/2023dt_panel_inmo2.gz")
-
-fmt_num <- function(x, dec = 0) {
-  if (is.na(x) || !is.finite(x)) return("NA")
-  formatC(x, format = "f", digits = dec, big.mark = ".", decimal.mark = ",")
+# Fast loader helper: converts in-place to data.table without caching raw tibbles
+read_dt_fwf <- function(file, positions, types, col_names) {
+  dt <- setDT(read_fwf(
+    file,
+    col_positions = positions,
+    col_types = types,
+    na = c("", "NA", "."),
+    show_col_types = FALSE
+  ))
+  setnames(dt, col_names)
+  return(dt)
 }
 
 # ==============================================================================
-# 2. DIAGNÓSTICO DE REGISTROS Y COMPLETITUD CATASTRAL
+# 1. RENTA & IDEN (Filer-level tax context)
 # ==============================================================================
-dt_sub <- dt[as.numeric(INGRESOS_INTEGROS) > 0 & !is.na(RC_ANONIMA)]
+start_positions <- c(1, 12, 233, 248, 263, 878, 893)
+end_positions   <- c(11, 22, 247, 262, 277, 892, 907)
+renta_cols <- c("IDENPER", "IDENHOG", "M3_ALQUILER_TOTAL", "M31_ALQUILER_PFISICAS", 
+                "M32_ALQUILER_ENTIDADES", "RB", "RBD")
 
-cat("------------------------------------------------------------------\n")
-cat("AUDITORÍA DE REGISTROS MUESTRALES\n")
-cat("------------------------------------------------------------------\n")
-cat(sprintf("Total registros en panel (INM_PR consolidado):           %s\n", fmt_num(nrow(dt))))
-cat(sprintf("Total registros con RC_ANONIMA:                          %s\n", fmt_num(nrow(dt[!is.na(RC_ANONIMA)]))))
-cat(sprintf("Total registros con alquiler declarado (submuestra):     %s\n\n", fmt_num(nrow(dt_sub))))
+renta <- read_dt_fwf(
+  paste0(data_path, "_2_Renta", sel_year, ".txt"),
+  fwf_positions(start_positions, end_positions),
+  "ddddddd",
+  renta_cols
+)
 
-cat(sprintf("Porcentaje sin VIVHAB en panel completo:                 %.2f\n", dt[is.na(URBACLAVES_HABITUAL), .N] / nrow(dt)))
-cat(sprintf("Porcentaje sin VIVHAB en submuestra de alquiler:         %.2f\n", dt_sub[is.na(URBACLAVES_HABITUAL), .N] / nrow(dt_sub)))
-cat(sprintf("Porcentaje sin RC_ANONIMA (extranjero/foral/no ref):     %.2f\n\n", dt[is.na(RC_ANONIMA), .N] / nrow(dt)))
+div_cols <- c("M3_ALQUILER_TOTAL", "M31_ALQUILER_PFISICAS", "M32_ALQUILER_ENTIDADES", "RB", "RBD")
+renta[, (div_cols) := lapply(.SD, `/`, 100), .SDcols = div_cols]
 
-# ==============================================================================
-# 3. ESCALADO DE PESOS Y NORMALIZACIÓN DE VARIABLES
-# ==============================================================================
+start_iden <- c(1, 12, 35, 36)
+end_iden   <- c(11, 22, 35, 55)
+iden_cols  <- c("IDENPER", "IDENHOG", "TRAMO", "FACTORCAL")
 
-# A. Factor de elevación (FACTORCAL)
-fc_raw <- as.numeric(dt$FACTORCAL)
-if (median(fc_raw, na.rm = TRUE) > 1000) {
-  dt[, FACTORCAL_NUM := fc_raw / 1e10]
-} else {
-  dt[, FACTORCAL_NUM := fc_raw]
-}
+iden <- read_dt_fwf(
+  paste0(data_path, "_1_IDEN", sel_year, ".txt"),
+  fwf_positions(start_iden, end_iden),
+  "ddcc",
+  iden_cols
+)
 
-# B. Cuota de titularidad (share en escala 0.0 a 1.0)
-porc <- as.numeric(dt$URBAPORBIN)
-if (quantile(porc[porc > 0], 0.9, na.rm = TRUE) > 1) {
-  dt[, share := pmin(pmax(porc / 100, 0), 1)]
-} else {
-  dt[, share := pmin(pmax(porc, 0), 1)]
-}
-dt[is.na(share) | share <= 0, share := 1.0]
-
-# C. Importes monetarios corregidos
-if (mean(as.numeric(dt_sub$INGRESOS_INTEGROS), na.rm = TRUE) < 200) {
-  dt[, INGRESOS_REALES := as.numeric(INGRESOS_INTEGROS) * 100]
-  dt[, REDUCCION_REAL  := as.numeric(REDUCCION_ALQUILER_VIVIENDA) * 100]
-} else {
-  dt[, INGRESOS_REALES := as.numeric(INGRESOS_INTEGROS)]
-  dt[, REDUCCION_REAL  := as.numeric(REDUCCION_ALQUILER_VIVIENDA)]
-}
-
-# D. Elevación en viviendas equivalentes (GWSM)
-dt[, veq := share * FACTORCAL_NUM]
+panel_renta <- merge(iden, renta, by = c("IDENPER", "IDENHOG"))
+panel_renta <- unique(panel_renta, by = "IDENPER")
+rm(iden, renta); gc()
 
 # ==============================================================================
-# 4. CLASIFICACIÓN DE USO RESIDENCIAL (VIVIENDA VS GARAJE/LOCAL/OTROS)
+# 2. MODULO 8 - IRPF_RRII (Declared rental yields per owner and property)
 # ==============================================================================
+start_rrii <- c(1, 12, 23, 154, 942, 962, 982, 1002, 1042)
+end_rrii   <- c(11, 22, 33, 173, 961, 981, 1001, 1021, 1061)
+rrii_cols  <- c("IDENPER", "IDENHOG", "RC_ANONIMA", "INGRESOS_INTEGROS", 
+                "RENDIMIENTO_NETO", "REDUCCION_ALQUILER_VIVIENDA", 
+                "REDUCCION_IRREGULAR", "RENDIMIENTO_MINIMO_PARENTESCO", 
+                "RENDIMIENTO_NETO_REDUCIDO")
 
-# Identificación de naturaleza residencial:
-# 1. Catastro acredita viviendas en la parcela: VIV >= 1
-# 2. Ocupante la declara como vivienda habitual: URBACLAVE contiene 'V'
-# 3. Arrendador declara reducción por vivienda habitual: REDUCCION_REAL > 0
-dt[, es_vivienda := (
-  (!is.na(VIV) & as.numeric(VIV) >= 1) |
-  (!is.na(URBACLAVES_HABITUAL) & grepl("V", URBACLAVES_HABITUAL)) |
-  (!is.na(REDUCCION_REAL) & REDUCCION_REAL > 0)
+rrii <- read_dt_fwf(
+  paste0(data_path, "_8_IRPF", sel_year, "_RRII.txt"),
+  fwf_positions(start_rrii, end_rrii),
+  "ddddddddd",
+  rrii_cols
+)
+
+importes_rrii <- c("INGRESOS_INTEGROS", "RENDIMIENTO_NETO", "REDUCCION_ALQUILER_VIVIENDA",
+                   "REDUCCION_IRREGULAR", "RENDIMIENTO_MINIMO_PARENTESCO", "RENDIMIENTO_NETO_REDUCIDO")
+rrii[, (importes_rrii) := lapply(.SD, `/`, 100), .SDcols = importes_rrii]
+
+# Consolidate multiple leasing periods within the same year for the same (IDENPER, RC)
+rrii <- rrii[, .(
+  N_PERIODOS_RRII               = .N,
+  INGRESOS_INTEGROS             = sum(INGRESOS_INTEGROS, na.rm = TRUE),
+  RENDIMIENTO_NETO              = sum(RENDIMIENTO_NETO, na.rm = TRUE),
+  REDUCCION_ALQUILER_VIVIENDA   = sum(REDUCCION_ALQUILER_VIVIENDA, na.rm = TRUE),
+  REDUCCION_IRREGULAR           = sum(REDUCCION_IRREGULAR, na.rm = TRUE),
+  RENDIMIENTO_MINIMO_PARENTESCO = sum(RENDIMIENTO_MINIMO_PARENTESCO, na.rm = TRUE),
+  RENDIMIENTO_NETO_REDUCIDO     = sum(RENDIMIENTO_NETO_REDUCIDO, na.rm = TRUE)
+), by = .(IDENPER, RC_ANONIMA)]
+rrii[, IN_RRII := TRUE]
+
+# ==============================================================================
+# 3. MODULO 1 - VIVIENDA HABITUAL (Occupancy aggregation to property grain)
+# ==============================================================================
+start_vivhab <- c(1, 12, 14, 15, 26)
+end_vivhab   <- c(11, 13, 14, 25, 29)
+vivhab_cols  <- c("IDENPER_OCUPANTE", "TIPO_OCUPANTE", "URBACLAVE", "RC_ANONIMA", "MARCA_VIVHAB")
+
+vivhab <- read_dt_fwf(
+  paste0(data_path, "VIVHAB", sel_year, ".txt"),
+  fwf_positions(start_vivhab, end_vivhab),
+  "dccdc",
+  vivhab_cols
+)
+
+# Aggregate occupants: captures household counts without multiplying rows
+vivhab_agg <- vivhab[!is.na(RC_ANONIMA), .(
+  N_OCUPANTES_VIVHAB  = .N,
+  URBACLAVES_HABITUAL = paste(sort(unique(na.omit(URBACLAVE))), collapse = ";"),
+  TIPOS_OCUPANTE      = paste(sort(unique(na.omit(TIPO_OCUPANTE))), collapse = ";"),
+  IN_VIVHAB           = TRUE
+), by = RC_ANONIMA]
+rm(vivhab); gc()
+
+# ==============================================================================
+# 4. MODULO 3 - CARACTERISTICAS (Lossless deduplication confirmed by diagnostic)
+# ==============================================================================
+start_inmcar <- c(1, 3, 5, 8, 10, 13, 18, 33, 38, 53, 57, 68)
+end_inmcar   <- c(2, 4, 7, 9, 12, 17, 32, 37, 52, 56, 67, 82)
+inmcar_cols  <- c("CA", "PROV", "MUN", "DIST", "SECC", "VIVLOC", "VIVLOC_METROS", 
+                  "VIV", "VIV_METROS", "ANCONS", "RC_ANONIMA", "VALCAT")
+
+inm_car <- read_dt_fwf(
+  paste0(data_path, "INM_CARACT", sel_year, ".txt"),
+  fwf_positions(start_inmcar, end_inmcar),
+  "cccccddddddd",
+  inmcar_cols
+)
+inm_car[, c("VIVLOC_METROS", "VIV_METROS", "VALCAT") := lapply(.SD, `/`, 100), 
+        .SDcols = c("VIVLOC_METROS", "VIV_METROS", "VALCAT")]
+
+# Diagnostic verified 0 conflicting values: strictly exact duplicates
+inm_car_agg <- unique(inm_car[!is.na(RC_ANONIMA)], by = "RC_ANONIMA")
+inm_car_agg[, IN_CARACT := TRUE]
+rm(inm_car); gc()
+
+# ==============================================================================
+# 5. MODULO 2 - PATRIMONIO INMOBILIARIO & CO-OWNERSHIP METRICS
+# ==============================================================================
+start_inmpr <- c(1, 12, 14, 20, 35, 43, 51)
+end_inmpr   <- c(11, 13, 19, 34, 42, 50, 61)
+inmpr_cols  <- c("IDENPER", "URBACODERE", "URBAPORBIN", "URBAVALORC", "URBAFECHIN", "URBAFECHFI", "RC_ANONIMA")
+
+inm_pr <- read_dt_fwf(
+  paste0(data_path, "INM_PR", sel_year, ".txt"),
+  fwf_positions(start_inmpr, end_inmpr),
+  "dcddddd",
+  inmpr_cols
+)
+inm_pr[, c("URBAPORBIN", "URBAVALORC") := lapply(.SD, `/`, 100), .SDcols = c("URBAPORBIN", "URBAVALORC")]
+
+# Consolidate rare cases where a single taxpayer holds multiple rights/periods for the same RC
+inm_pr <- inm_pr[, .(
+  N_TITULOS_IDENPER = .N,
+  URBAPORBIN        = sum(URBAPORBIN, na.rm = TRUE),
+  URBAVALORC        = sum(URBAVALORC, na.rm = TRUE),
+  URBACODERE        = paste(sort(unique(na.omit(URBACODERE))), collapse = ";")
+), by = .(IDENPER, RC_ANONIMA)]
+
+# Co-ownership structure across distinct taxpayers declaring the same property
+inm_pr[!is.na(RC_ANONIMA), `:=`(
+  N_COPROPIETARIOS_MUESTRA = uniqueN(IDENPER),
+  PORC_PROPIEDAD_MUESTRA   = sum(URBAPORBIN, na.rm = TRUE),
+  # Flag exactly one owner row per property to isolate physical stock
+  FLAG_INMUEBLE_UNICO      = (seq_len(.N) == 1L)
+), by = RC_ANONIMA]
+
+# Single-owner fallback for missing cadastral references
+inm_pr[is.na(RC_ANONIMA), `:=`(
+  N_COPROPIETARIOS_MUESTRA = 1L,
+  PORC_PROPIEDAD_MUESTRA   = URBAPORBIN,
+  FLAG_INMUEBLE_UNICO      = TRUE
 )]
 
-# Exclusión explícita de anexos no residenciales confirmados (garajes 'A', locales 'C')
-dt[!is.na(URBACLAVES_HABITUAL) & !grepl("V", URBACLAVES_HABITUAL) & (is.na(VIV) | as.numeric(VIV) == 0), 
-   es_vivienda := FALSE]
+# ==============================================================================
+# 6. RELATIONAL MERGES (Protected NA sentinels)
+# ==============================================================================
+inm_pr[is.na(RC_ANONIMA),      RC_ANONIMA := -.I]
+vivhab_agg[is.na(RC_ANONIMA),  RC_ANONIMA := -(.I + 1e8)]
+inm_car_agg[is.na(RC_ANONIMA), RC_ANONIMA := -(.I + 2e8)]
+rrii[is.na(RC_ANONIMA),        RC_ANONIMA := -(.I + 3e8)]
+
+# Enrich property ownership with occupant profile
+property_level <- merge(inm_pr, vivhab_agg, by = "RC_ANONIMA", all.x = TRUE)
+rm(inm_pr, vivhab_agg); gc()
+property_level[is.na(IN_VIVHAB), IN_VIVHAB := FALSE]
+property_level[is.na(N_OCUPANTES_VIVHAB), N_OCUPANTES_VIVHAB := 0L]
+
+# Enrich with physical characteristics
+property_level <- merge(property_level, inm_car_agg, by = "RC_ANONIMA", all.x = TRUE)
+rm(inm_car_agg); gc()
+property_level[is.na(IN_CARACT), IN_CARACT := FALSE]
+
+# Match individual rental income declarations
+property_level <- merge(property_level, rrii, by = c("IDENPER", "RC_ANONIMA"), all.x = TRUE)
+rm(rrii); gc()
+property_level[is.na(IN_RRII), IN_RRII := FALSE]
+
+# Restore original NA values
+property_level[RC_ANONIMA < 0, RC_ANONIMA := NA]
 
 # ==============================================================================
-# 5. ESTIMACIÓN POBLACIONAL
+# 7. METRIC ATTRIBUTION & SAMPLE AGGREGATION
 # ==============================================================================
+# Attributed metrics for landlord-level portfolio analysis
+property_level[, `:=`(
+  VALCAT_CUOTA     = VALCAT * (URBAPORBIN / 100),
+  VIV_METROS_CUOTA = VIV_METROS * (URBAPORBIN / 100)
+)]
 
-# 5.1 Parque Total vs Parque Residencial
-tot_patrimonio_elevado <- dt[, sum(veq, na.rm = TRUE)]
-tot_residencial_elevado <- dt[es_vivienda == TRUE, sum(veq, na.rm = TRUE)]
+# Property-level totals across all sample co-owners
+property_level[!is.na(RC_ANONIMA), `:=`(
+  INGRESOS_INTEGROS_TOTAL_INMUEBLE = sum(INGRESOS_INTEGROS, na.rm = TRUE),
+  RENDIMIENTO_NETO_TOTAL_INMUEBLE  = sum(RENDIMIENTO_NETO, na.rm = TRUE)
+), by = RC_ANONIMA]
 
-# 5.2 Submuestra de alquiler
-dt_sub <- dt[INGRESOS_REALES > 0 & !is.na(RC_ANONIMA)]
-dt_sub[, alq_mes_viv_completa := (INGRESOS_REALES / share) / 12]
+property_level[is.na(RC_ANONIMA), `:=`(
+  INGRESOS_INTEGROS_TOTAL_INMUEBLE = INGRESOS_INTEGROS,
+  RENDIMIENTO_NETO_TOTAL_INMUEBLE  = RENDIMIENTO_NETO
+)]
 
-tot_alq_bruto <- dt_sub[, sum(veq, na.rm = TRUE)]
-
-# Habitual: contrato con reducción art. 23.2 LIRPF
-tot_alq_hab <- dt_sub[REDUCCION_REAL > 0, sum(veq, na.rm = TRUE)]
-alq_mes_hab <- dt_sub[REDUCCION_REAL > 0, sum(alq_mes_viv_completa * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
-
-# Resto sin reducción: se descompone en vivienda no habitual y no residencial (garajes/locales)
-dt_nh <- dt_sub[is.na(REDUCCION_REAL) | REDUCCION_REAL <= 0]
-tot_nh_bruto <- dt_nh[, sum(veq, na.rm = TRUE)]
-
-# No habitual residencial depurado (vivienda acreditada y renta anual >= 2.400 €)
-dt_nh_residencial <- dt_nh[es_vivienda == TRUE & (INGRESOS_REALES / share) >= 2400]
-tot_nh_residencial <- dt_nh_residencial[, sum(veq, na.rm = TRUE)]
-alq_mes_nh <- dt_nh_residencial[, sum(alq_mes_viv_completa * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
-
-# Subconjunto estricto con clave 'V' confirmada en VIVHAB
-dt_nh_v_pura <- dt_nh[grepl("V", URBACLAVES_HABITUAL) & (INGRESOS_REALES / share) >= 2400]
-tot_nh_v_pura <- dt_nh_v_pura[, sum(veq, na.rm = TRUE)]
-alq_mes_nh_v <- dt_nh_v_pura[, sum(alq_mes_viv_completa * veq, na.rm = TRUE) / sum(veq, na.rm = TRUE)]
-
-# Anexos y alquiler no residencial (garajes sueltos, trasteros, locales comerciales)
-tot_alq_no_residencial <- dt_nh[es_vivienda == FALSE | (INGRESOS_REALES / share) < 2400, sum(veq, na.rm = TRUE)]
-
-# Masa dineraria total declarada (Horvitz-Thompson)
-masa_alquiler_total <- dt[, sum(INGRESOS_REALES * FACTORCAL_NUM, na.rm = TRUE)]
+# Distinct properties held per landlord
+property_level[, N_PROPIEDADES_TITULAR := uniqueN(RC_ANONIMA), by = IDENPER]
 
 # ==============================================================================
-# 6. RESULTADOS FORMATEADOS
+# 8. FINAL MERGE & EXPORT
 # ==============================================================================
-cat("==================================================================\n")
-cat("RESULTADOS DE INFERENCIA POBLACIONAL (FACTORCAL x cuota)\n")
-cat("==================================================================\n")
-cat(sprintf("Factor de elevación medio:                                %s\n", fmt_num(mean(dt$FACTORCAL_NUM, na.rm = TRUE), dec = 2)))
-cat(sprintf("Masa total de ingresos por alquiler declarada:            %s €\n\n", fmt_num(masa_alquiler_total)))
+dt <- merge(property_level, panel_renta, by = "IDENPER", all.x = TRUE)
+rm(property_level, panel_renta); gc()
 
-cat("1. PARQUE INMOBILIARIO EN MANOS DE DECLARANTES IRPF\n")
-cat(sprintf("  * Parque Inmobiliario TOTAL (viviendas + garajes + locales): %s unidades\n", fmt_num(tot_patrimonio_elevado)))
-cat(sprintf("  * Parque RESIDENCIAL estimado (solo viviendas):              %s viviendas\n\n", fmt_num(tot_residencial_elevado)))
-
-cat("2. MERCADO DEL ALQUILER DECLARADO (Módulo 8 - IRPF)\n")
-cat(sprintf("  * Total contratos / inmuebles con alquiler declarado:        %s unidades\n", fmt_num(tot_alq_bruto)))
-cat(sprintf("    - Alquiler Habitual (con red. 23.2):                      %s viviendas (Ref. AEAT: ~2.409.689)\n", fmt_num(tot_alq_hab)))
-cat(sprintf("      Alquiler medio mensual habitual:                        %s €/mes (Ref. AEAT: 657 €)\n", fmt_num(alq_mes_hab, dec = 2)))
-cat(sprintf("    - Alquiler No Habitual RESIDENCIAL (temporada/turismo):    %s viviendas (Ref. AEAT:   ~309.479)\n", fmt_num(tot_nh_residencial)))
-cat(sprintf("      Alquiler medio mensual no habitual:                     %s €/mes (Ref. AEAT: 1.361 €)\n", fmt_num(alq_mes_nh, dec = 2)))
-cat(sprintf("    - Alquiler NO Residencial (plazas de garaje, trasteros):   %s unidades\n\n", fmt_num(tot_alq_no_residencial)))
-
-cat("3. SENSIBILIDAD: NO HABITUAL CON CLAVE 'V' CONFIRMADA EN VIVHAB\n")
-cat(sprintf("  * No habitual con inquilino censado en VIVHAB ('V'):        %s viviendas\n", fmt_num(tot_nh_v_pura)))
-cat(sprintf("  * Alquiler medio mensual:                                   %s €/mes\n", fmt_num(alq_mes_nh_v, dec = 2)))
-cat("==================================================================\n")
+dir.create(paste0("out/", sel_year), recursive = TRUE, showWarnings = FALSE)
+fwrite(dt, paste0("out/", sel_year, "/", sel_year, "dt_panel_inmo.gz"), na = "NA")
+rm(dt); gc()
