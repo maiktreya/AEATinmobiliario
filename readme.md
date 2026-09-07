@@ -172,7 +172,25 @@ Variables de la tabla maestra final (5.557.238 filas):
 
 Para realizar inferencia sobre el parque inmobiliario y los arrendamientos a partir de la muestra estratificada de declarantes, se aplica el método GWSM (*Generalized Weight Share Method*):
 
-$$\text{veq}_i = \text{share}_i \text{FACTORCAL}_i = \left(\frac{\text{URBAPORBIN}_i}{100}\right) \times \text{FACTORCAL}_i$$
+GitHub's parser requires display math ($$) to sit on its own lines with empty lines separating it from surrounding text. If $$ is placed on the same line as the equation or directly touches paragraph text, GitHub treats it as raw text.
+Use either of these two working formats in your README:
+Option 1: Standard display block (recommended)
+Leave an empty line before and after, and place $$ on separate lines:
+(Generalized Weight Share Method):
+
+$$
+\text{veq}_i = \text{share}_i \times \text{FACTORCAL}_i = \left(\frac{\text{URBAPORBIN}_i}{100}\right) \times \text{FACTORCAL}_i
+$$
+
+**Escalado adaptativo de FACTORCAL**:
+
+Option 2: Explicit math code block (failsafe)
+GitHub natively supports ```math code fences, which prevents GitHub Flavored Markdown from misinterpreting underscores (_) as italic markdown:
+```math
+\text{veq}_i = \text{share}_i \times \text{FACTORCAL}_i = \left(\frac{\text{URBAPORBIN}_i}{100}\right) \times \text{FACTORCAL}_i
+```
+
+
 
 ### Correcciones Técnicas Implementadas
 
