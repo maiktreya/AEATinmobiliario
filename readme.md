@@ -340,3 +340,80 @@ El ajuste metodológico sitúa las estimaciones del panel en una convergencia es
 | **Parque Residencial (declarantes IRPF)** | 20.936.734 viv. | 46.680 (0,22%) | ~20,9 M (INE conciliado) | **100,0%** |
 
 Los intervalos de confianza al 95 % derivados de las EE confirman que las brechas residuales frente a la AEAT son **estructurales** (perímetro de observación: declaraciones vs. viviendas equivalentes; cobertura del 89 % de la masa del Módulo 8) y **no error muestral**: p. ej., el IC del alquiler habitual (2.305.156–2.361.142) no cubre los 2.409.689 oficiales, mientras que la renta no habitual anualizada (1.318–1.461 €/mes) **sí es estadísticamente consistente** con la referencia AEAT de 1.361 €/mes.
+
+---
+
+## 9. Análisis de Sensibilidad: Exclusión de Registros de Riesgo
+
+El script [`src/rev/revPanel2023_join.V2.drop.R`](src/rev/revPanel2023_join.V2.drop.R) replica el análisis principal y excluye, antes de calcular los totales y las medias del alquiler, los registros de alquiler no habitual residencial que presentan la señal de riesgo `VIVLOC > VIV`. Esta señal identifica parcelas en las que el número de viviendas y locales supera el número de viviendas físicas, dentro del conjunto `riesgo_total` (14.563 registros excluidos de 41.619 registros evaluados). El objetivo es medir cómo afecta esta depuración a las magnitudes estimadas, manteniendo observables los restantes alquileres no habituales residenciales.
+
+La ejecución del script produce:
+
+```r source("~/src/rev/revPanel2023_join.V2.drop.R", encoding = "UTF-8")
+------------------------------------------------------------------
+AUDITORIA DE REGISTROS MUESTRALES
+------------------------------------------------------------------
+Total registros en panel (titulos reales INM_PR):        3.173.648
+Total declarantes con titulos:                          1.170.090
+Total registros con RC_ANONIMA:                        3.173.648
+Total registros con alquiler declarado (submuestra):    377.992
+
+Porcentaje con VIVHAB en panel completo:                 0.44
+Porcentaje con VIVHAB en submuestra de alquiler:        0.23
+Porcentaje con INM_CARACT en submuestra de alquiler:    0.99
+
+Filas sin FACTORCAL (excluidas del diseño muestral):   356
+
+Cuotas imputadas a share=1 (NA o <=0%):                2 filas (veq: 2)
+
+Composicion del canal de clasificacion residencial (filas / veq):
+  via VIV>=1 (catastro fisico):  1.971.865 / 20.714.405
+  via clave 'V' en VIVHAB:       1.186.507 / 13.690.694
+  solo via reduccion art. 23.2:  6.537 / 50.850
+Alquiler VIV>1 sin señal fuerte con VIVLOC>VIV: 5.736 de 7.822
+Panel completo, VIV>=1 sin señal fuerte con VIVLOC>VIV: 14.563 de 41.619
+Registros excluidos por riesgo_total (VIVLOC > VIV):          14.563
+
+
+Dias de contrato observados en submuestra de alquiler:  363.393 de 363.429 (99.99%)
+==================================================================
+RESULTADOS DE INFERENCIA POBLACIONAL (GWSM: share x FACTORCAL)
+EE por linealizacion de Taylor (estratos TRAMO, conglomerados IDENHOG)
+==================================================================
+Factor de elevacion medio (filas del panel):           16,47
+Masa de ingresos por alquiler unida al panel:          25.380.433.022 (EE 152.537.844; CV 0.60%) EUR
+(Cobertura de la masa declarada del Modulo 8: ver auditoria de uniones del script 1)
+
+1. PARQUE INMOBILIARIO EN MANOS DE DECLARANTES IRPF
+  * Parque Inmobiliario TOTAL (viviendas + garajes + locales): 31.921.213 (EE 76.949; CV 0.24%) unidades
+  * Parque RESIDENCIAL estimado (viviendas fisicas declarantes): 20.817.039 (EE 46.393; CV 0.22%) viviendas
+    (Cota superior ponderando por VIV en parcelas multiples:   28.078.164 (EE 67.514; CV 0.24%) viviendas)
+    (Nota: El Censo INE reporta 26,6M; deduciendo Pais Vasco, Navarra, sociedades y no residentes, concuerda con ~20,9M)
+
+2. MERCADO DEL ALQUILER DECLARADO (Modulo 8 - IRPF)
+  * Submuestra con alquiler (n crudo):                  363.429 unidades
+  * Total contratos / inmuebles con alquiler declarado:  3.213.408 (EE 18.471; CV 0.57%) unidades
+
+    - Alquiler Habitual CONVERGENTE:                     2.333.149 (EE 14.282; CV 0.61%) viviendas (Ref. AEAT: 2.409.689)
+        . Declaradas con reduccion art. 23.2:            2.181.692 (EE 13.934; CV 0.64%) viviendas
+        . Reclasificadas con inquilino en VIVHAB ('V'):   151.457 (EE 2.579; CV 1.70%) viviendas
+      Renta media mensual habitual (flujo anual / 12):    639,70 (EE 2,07; CV 0.32%) EUR/mes
+      Renta media mensual habitual (anualizada AEAT):     734,67 (EE 4,18; CV 0.57%) EUR/mes (Ref. AEAT: 657 EUR)
+
+    - Alquiler No Habitual RESIDENCIAL (umbral 2.400 EUR/anual):
+      Total:                                             193.078 (EE 3.438; CV 1.78%) viviendas (Ref. AEAT:   309.479)
+      Renta media mensual no habitual (flujo anual / 12): 742,69 (EE 9,81; CV 1.32%) EUR/mes
+      Renta media mensual no habitual (anualizada AEAT):   1.282,16 (EE 49,34; CV 3.85%) EUR/mes (Ref. AEAT: 1.361 EUR)
+
+    - Alquiler NO Residencial (garajes, trasteros, locales): 687.181 (EE 8.218; CV 1.20%) unidades
+
+3. SENSIBILIDAD DEL UMBRAL RESIDENCIAL (viviendas equivalentes elevadas)
+  Umbral EUR/anual | No Habitual Residencial | No Residencial
+  ----------------------------------------------------------------
+            1.200 |                 211.767 |          668.492
+            1.800 |                 202.073 |          678.185
+            2.400 |                 193.078 |          687.181
+            3.600 |                 170.250 |          710.009
+            4.800 |                 140.678 |          739.580
+==================================================================
+```
