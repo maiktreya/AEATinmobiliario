@@ -137,6 +137,10 @@ cat(sprintf("  solo via reduccion art. 23.2:  %s / %s\n",
                          !is.na(REDUCCION_REAL) & REDUCCION_REAL > 0 & es_vivienda == TRUE, sum(veq, na.rm = TRUE)]))
 )
 
+riesgo_mixto <- dt[INGRESOS_REALES > 0 & !is.na(RC_ANONIMA) & VIV > 1 & (is.na(URBACLAVES_HABITUAL) | !grepl("V", URBACLAVES_HABITUAL)) & 
+                (is.na(REDUCCION_REAL) | REDUCCION_REAL <= 0), .(n = .N, n_mixto = sum(VIVLOC > VIV, na.rm = TRUE))]
+cat(sprintf("Alquiler VIV>1 sin señal fuerte con VIVLOC>VIV: %s de %s\n", fmt_num(riesgo_mixto$n_mixto), fmt_num(riesgo_mixto$n)))
+
 # Diagnostico complementario: parcelas con multiples viviendas (VIV > 1) cuentan
 # como una unidad en la estimacion principal; se reporta tambien la cota ponderada.
 dt[, share_viv := share * fifelse(is.na(VIV), 1L, as.integer(pmax(VIV, 1L)))]
