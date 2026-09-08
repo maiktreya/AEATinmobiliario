@@ -29,8 +29,6 @@ options(survey.lonely.psu = "adjust")
 # ------------------------------------------------------------------------------
 panel_path             <- "out/2023/2023dt_panel_inmo.gz"
 umbral_residencial_eur <- 2400
-dias_aeat_habitual     <- 339
-dias_aeat_no_habitual  <- 271
 
 # ------------------------------------------------------------------------------
 # Helpers
@@ -136,14 +134,26 @@ dt[, es_alquiler := (INGRESOS_REALES > 0 & !is.na(RC_ANONIMA))]
 dt[, ing_anual_pleno := INGRESOS_REALES / share]
 dt[, alq_mes_flujo := fifelse(es_alquiler, ing_anual_pleno / 12, NA_real_)]
 
+# Dias de contrato observados (PAR101 del Modulo 8); si faltan, se imputan con
+# la media de dias observada del propio segmento (dato interno, sin constantes magicas)
 dt[, dias_arr := fifelse(es_alquiler & !is.na(DIAS_ARREND) & DIAS_ARREND > 0,
                          pmin(as.numeric(DIAS_ARREND), 365), NA_real_)]
 dt[, es_habitual_revisado := (
   (!is.na(REDUCCION_REAL) & REDUCCION_REAL > 0) |
   (!is.na(URBACLAVES_HABITUAL) & grepl("V", URBACLAVES_HABITUAL))
 )]
-dt[es_alquiler == TRUE & is.na(dias_arr),
-   dias_arr := fifelse(es_habitual_revisado == TRUE, dias_aeat_habitual, dias_aeat_no_habitual)]
+n_dias_imp <- dt[es_alquiler == TRUE & is.na(dias_arr), .N]
+if (n_dias_imp > 0) {
+  dias_imp_hab <- dt[es_alquiler == TRUE & es_habitual_revisado == TRUE & !is.na(dias_arr), mean(dias_arr)]
+  dias_imp_nh  <- dt[es_alquiler == TRUE & es_habitual_revisado == FALSE & !is.na(dias_arr), mean(dias_arr)]
+  # Salvaguarda si un segmento careciera de dias observados: año completo (imputacion neutra)
+  if (!is.finite(dias_imp_hab)) dias_imp_hab <- 365
+  if (!is.finite(dias_imp_nh))  dias_imp_nh  <- 365
+  dt[es_alquiler == TRUE & is.na(dias_arr),
+     dias_arr := fifelse(es_habitual_revisado == TRUE, dias_imp_hab, dias_imp_nh)]
+  cat(sprintf("Dias imputados con la media observada del segmento:    %s filas (habitual %.1f d; no habitual %.1f d)\n",
+              fmt_num(n_dias_imp), dias_imp_hab, dias_imp_nh))
+}
 dt[, alq_mes_aeat := alq_mes_flujo * (365 / dias_arr)]
 
 dt[, alq_veq_flujo := share * alq_mes_flujo]
