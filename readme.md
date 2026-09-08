@@ -8,13 +8,9 @@ El procesamiento resuelve tres retos analíticos y computacionales:
 
 * **Vinculación a nivel de inmueble físico (`RC_ANONIMA`)**: Conecta cada rendimiento declarado con su propiedad física real, superando las limitaciones de los análisis agregados a nivel de persona u hogar.
 
-
 * **Eficiencia de memoria y prevención de productos cartesianos**: Agrega de forma determinista las relaciones $1:N$ y $M:N$ (múltiples inquilinos en una vivienda o cotitularidades) antes de los cruces relacionales, evitando el desbordamiento de memoria RAM.
 
-
 * **Inferencia poblacional sin doble cómputo**: Aplica el método de partición de pesos (*Generalized Weight Share Method*, GWSM) elevando cada registro por `share * FACTORCAL`, permitiendo estimar el parque residencial físico y contrastar el mercado del alquiler frente a la estadística oficial de la AEAT.
-
-
 
 ---
 
@@ -25,33 +21,21 @@ El flujo de trabajo se estructura en dos scripts secuenciales ubicados en el rep
 * **[`src/joint/getPanel2023_join.R`](src/joint/getPanel2023_join.R) (Script 1 - Construcción del Panel Consolidado)**:
 * Ingesta los ficheros de ancho fijo (FWF) en streaming convirtiéndolos directamente en memoria a `data.table` mediante `read_dt_fwf`.
 
-
 * Agrega contratos y periodos en Módulo 8 (`RRII`) por titular e inmueble.
-
 
 * Resume los ocupantes de `VIVHAB` a nivel de referencia catastral.
 
-
 * Deduplica las fichas físicas de `INM_CARACT` sin pérdida de información.
-
 
 * Consolida los títulos patrimoniales de `INM_PR` por `(IDENPER, RC_ANONIMA)`, calculando cuotas y banderas de copropiedad.
 
-
 * Exporta la base unificada a `out/2023/2023dt_panel_inmo.gz`.
-
-
-
 
 * **[`src/rev/revPanel2023_join.R`](src/rev/revPanel2023_join.R) (Script 2 - Diagnóstico, Inferencia y Filtrado Residencial)**:
 * Evalúa la cobertura y disponibilidad de claves de uso catastral (`URBACLAVES_HABITUAL`).
 * Normaliza y escala adaptativamente `FACTORCAL`, la cuota de titularidad (`share`) y los importes monetarios.
 * Clasifica el parque inmobiliario total y discrimina el parque residencial respecto a garajes o locales comerciales.
 * Ejecuta la inferencia poblacional y compara las magnitudes obtenidas con el Bloque I de la estadística oficial de la AEAT.
-
-
-
-
 
 ---
 
@@ -84,13 +68,9 @@ Los contribuyentes pueden consignar varios registros para una misma propiedad de
 
 * `N_OCUPANTES_VIVHAB`: Número de ocupantes observados en la residencia.
 
-
 * `URBACLAVES_HABITUAL`: Cadena concatenada de usos catastrales declarados (ej. `"V"`, `"A"`, `"V;A"`).
 
-
 * `TIPOS_OCUPANTE`: Tipologías de tenencia de los ocupantes.
-
-
 
 ### Deduplicación de Características Físicas (`INM_CARACT`)
 
@@ -102,13 +82,9 @@ Los 5.678.026 registros del censo de `INM_PR` reflejan derechos o intervalos tem
 
 * `URBAPORBIN`: Porcentaje de propiedad total acumulado por el titular sobre el inmueble.
 
-
 * `N_COPROPIETARIOS_MUESTRA`: Recuento de declarantes en la muestra con cuota sobre esa propiedad.
 
-
 * `FLAG_INMUEBLE_UNICO`: Marca booleana asignada a exactamente un titular por `RC_ANONIMA`, permitiendo aislar el parque inmobiliario físico sin duplicaciones.
-
-
 
 ### Centinelas Numéricos para NAs
 
@@ -182,13 +158,10 @@ Leave an empty line before and after, and place $$ on separate lines:
 \text{veq}_i = \text{share}_i \times \text{FACTORCAL}_i = \left(\frac{\text{URBAPORBIN}_i}{100}\right) \times \text{FACTORCAL}_i
 ```
 
-
-
 ### Correcciones Técnicas Implementadas
 
 * **Escalado adaptativo de `FACTORCAL**`: Si el factor de elevación proviene sin coma decimal explícita (enteros de longitud 20), el script lo divide automáticamente entre $10^{10}$; si ya incluye decimales, preserva su magnitud unitaria directa.
 * **Control de escala de `share` (0.0 a 1.0)**: Evita la doble división porcentual asegurando que un titular con 100% de propiedad pondere por $1,0$ y un titular con 50% pondere por $0,5$.
-
 
 * **Escala de ingresos monetarios reales**: Asegura que los rendimientos computen en unidades monetarias reales de euros.
 
@@ -203,7 +176,6 @@ El alquiler bruto del Módulo 8 contiene contratos sobre toda clase de fincas ur
 
 1. **Alquiler Habitual**: Contratos acogidos a la reducción del artículo 23.2 de la Ley del IRPF (`REDUCCION_ALQUILER_VIVIENDA > 0`) o con inquilino censado con clave `"V"` en `VIVHAB`.
 
-
 2. **Alquiler No Habitual Residencial Depurado**: Contratos sin reducción del art. 23.2 ni inquilino censado `"V"` que acreditan condición de vivienda (`es_vivienda == TRUE`) e ingresos íntegros anuales completos $\ge 2.400$ €/año, descartando garajes independientes y trasteros alquilados sueltos.
 3. **Alquiler No Residencial**: Arrendamientos de garajes sueltos, almacenes y locales comerciales.
 
@@ -214,7 +186,7 @@ El alquiler bruto del Módulo 8 contiene contratos sobre toda clase de fincas ur
 Al ejecutar [`src/rev/revPanel2023_join.R`](rc/rev/revPanel2023_join.R), se obtienen las siguientes magnitudes directas:
 
 ```r
-r$> source("/home/other/Downloads/informe alquiler MICO 4/src/rev/revPanel2023_join.R", encoding = "UTF-8")
+r$> source("/src/rev/revPanel2023_join.R", encoding = "UTF-8")
 |--------------------------------------------------|
 |==================================================|
 ------------------------------------------------------------------
@@ -268,27 +240,20 @@ Existe una aparente discrepancia entre las cifras de stock residencial reportada
 * **20,94 millones (Este Proyecto - Módulo Patrimonial `INM_PR`)**: Stock de viviendas físicas pertenecientes a **personas físicas declarantes del IRPF en territorio común**. Concuerda plenamente con el Censo del INE al deducir el País Vasco y Navarra (~1,5M), las propiedades de personas jurídicas y fondos institucionales (~2,2M), los propietarios no residentes extranjeros sujetos a IRNR (~1,0M) y los propietarios con rentas exentas de presentar IRPF (~1,0M).
 * **~18 millones (AEAT - Estadística de Declarantes del IRPF)**: La consulta Rubik de la AEAT no cuantifica el patrimonio residencial global, sino exclusivamente la **vivienda habitual de los hogares declarantes** (~15,6M en propiedad y ~2,4M en alquiler); excluye segundas residencias, inmuebles vacíos o viviendas arrendadas a terceros.
 
-
-
 ### 2. Clasificación del Alquiler y Convergencia con la AEAT
 
 La reclasificación de contratos residenciales sin reducción fiscal pero con inquilino censado en `VIVHAB` (`"V"`) aproxima con precisión el cruce con el censo de domicilios que efectúa internamente la AEAT:
 
 * **Alquiler Habitual (2.333.149 viviendas vs. 2.409.689 oficial)**: Ajuste del **96,8 %**. La pequeña diferencia restante reside en que la AEAT reporta declaraciones/liquidaciones individuales, mientras que este panel calcula viviendas equivalentes enteras (GWSM). En matrimonios al 50%, la AEAT computa 2 declaraciones y el panel computa 1,0 vivienda ($2.333.149 \times 1,033 \text{ declarantes/vivienda} \approx \mathbf{2.409.689}$).
 
-
 * **Alquiler No Habitual (297.473 viviendas vs. 309.479 oficial)**: Ajuste del **96,1 %**. El filtro residencial (`VIV >= 1` o `"V"`) con renta mínima anual de 2.400 € aparta garajes independientes y trasteros sin desvirtuar la oferta turística o de temporada.
-
-
 
 ### 3. Diferencial de la Renta Media No Habitual (786 € vs. 1.059 € vs. 1.361 €)
 
 * **Flujo mensual directo (786,75 €/mes)**: Resulta de dividir el total ingresado en el año entre 12 meses, reflejando el flujo de caja anual prorrateado.
 * **Anualización censal (1.059,65 €/mes)**: Se obtiene al proyectar los ingresos a 365 días aplicando la media censal de ocupación de 271 días de la AEAT ($786,75 \times 365 / 271$).
 
-
 * **Referencia oficial AEAT (1.361,00 €/mes)**: La AEAT calcula la tarifa media ponderando contrato a contrato con sus **días efectivos individuales de alquiler**. Debido a la desigualdad de Jensen en ratios no lineales ($\mathbb{E}[X/Y] \neq \mathbb{E}[X]/\mathbb{E}[Y]$), las estancias turísticas cortas con alta rotación (60–120 días y precios/día elevados) elevan fuertemente la media ponderada por encima de la imputación lineal a 271 días.
-
 
 **Diagnóstico de la Ejecución Final**
 
@@ -302,11 +267,10 @@ El ajuste metodológico sitúa las estimaciones del panel en una convergencia es
 | **Renta Media No Habitual (anualizada)** | 1.059,65 €/mes | 1.361,00 €/mes | **77,9%** |
 | **Masa Agregada Declarada** | 26.488 M€ | ~26.500 M€ | **100,0%** |
 
-
 Alternativamente este script de desarrollo explora intentar explicar la diferencia en el numero total de inmuebles residenciales entre el panel AEAT y la muestra de inmuebles IRPF. Con [`src/rev/revPanel2023_join_dev.R`](rc/rev/revPanel2023_join_dev.R), se obtienen las siguientes magnitudes directas:
 
   ```r
-r$> source("/home/other/Downloads/informe alquiler MICO 4/src/rev/revPanel2023_join_dev.R", encoding = "UTF-8")
+r$> source("~/src/rev/revPanel2023_join_dev.R", encoding = "UTF-8")
 |--------------------------------------------------|
 |==================================================|
 ------------------------------------------------------------------
