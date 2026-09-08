@@ -211,7 +211,7 @@ El alquiler bruto del Módulo 8 contiene contratos sobre toda clase de fincas ur
 
 ## 7. Resultados Empíricos Obtenidos frente a la Referencia AEAT (2023)
 
-Al ejecutar [`src/rev/revPanel2023_join.R`](https://www.google.com/search?q=src/rev/revPanel2023_join.R), se obtienen las siguientes magnitudes directas:
+Al ejecutar [`src/rev/revPanel2023_join.R`](rc/rev/revPanel2023_join.R), se obtienen las siguientes magnitudes directas:
 
 ```r
 r$> source("/home/other/Downloads/informe alquiler MICO 4/src/rev/revPanel2023_join.R", encoding = "UTF-8")
@@ -302,6 +302,57 @@ El ajuste metodológico sitúa las estimaciones del panel en una convergencia es
 | **Renta Media No Habitual (anualizada)** | 1.059,65 €/mes | 1.361,00 €/mes | **77,9%** |
 | **Masa Agregada Declarada** | 26.488 M€ | ~26.500 M€ | **100,0%** |
 
-## 🔒 Licencia
 
-Este proyecto está licenciado bajo la Licencia Pública General de GNU v3 (GPL-3). Consulta los términos completos en la [Licencia Oficial de GNU](https://www.google.com/search?q=https://www.gnu.org/licenses/gpl-3.0.en.html).
+Alternativamente este script de desarrollo explora intentar explicar la diferencia en el numero total de inmuebles residenciales entre el panel AEAT y la muestra de inmuebles IRPF. Con [`src/rev/revPanel2023_join_dev.R`](rc/rev/revPanel2023_join_dev.R), se obtienen las siguientes magnitudes directas:
+
+  ```r
+r$> source("/home/other/Downloads/informe alquiler MICO 4/src/rev/revPanel2023_join_dev.R", encoding = "UTF-8")
+|--------------------------------------------------|
+|==================================================|
+------------------------------------------------------------------
+AUDITORÍA DE REGISTROS MUESTRALES
+------------------------------------------------------------------
+Total registros en panel (INM_PR consolidado):           5.557.238
+Total registros con RC_ANONIMA:                          3.173.648
+Total registros con alquiler declarado (submuestra):     377.992
+
+Porcentaje sin VIVHAB en panel completo:                 0.75
+Porcentaje sin VIVHAB en submuestra de alquiler:         0.77
+Porcentaje sin RC_ANONIMA (extranjero/foral/no ref):     0.43
+
+==================================================================
+RESULTADOS DE INFERENCIA POBLACIONAL (FACTORCAL x cuota)
+==================================================================
+Factor de elevación medio:                                13,74
+Masa total de ingresos por alquiler declarada:            26.488.589.414 €
+
+1. PARQUE RESIDENCIAL FÍSICO CATASTRAL (INM_PR - Escala INE)
+  * Parque Inmobiliario TOTAL (viviendas + garajes + locales): 56.125.034 unidades
+  * Parque RESIDENCIAL FÍSICO (viviendas Catastro declarantes):20.936.734 viviendas
+    (Nota: concuerda con los 26,6M del Censo INE deduciendo País Vasco, Navarra, sociedades y no residentes)
+
+2. CONCILIACIÓN CON EL CENSO DE VIVIENDAS DECLARADAS EN IRPF (Tabla AEAT 18.069.370)
+  * A. Vivienda habitual en propiedad declarada en IRPF:       10.011.338 viviendas (Ref. AEAT: 10.460.700)
+       (Censadas en Catastro VIVHAB: 10.286.346 viv; exceso = no declarantes IRPF)
+  * B. Viviendas arrendadas (Habitual + No habitual):          2.630.622 viviendas (Ref. AEAT:  2.738.472)
+  * C. Segundas residencias / A disposición declaradas IRPF:   4.432.317 viviendas (Ref. AEAT:  4.870.198)
+       (Total censadas en Catastro: 4.454.461 viv; diferencia = nuda propiedad pura)
+  ---------------------------------------------------------------------------------------------
+  * TOTAL VIVIENDAS DECLARADAS IRPF ESTIMADAS:                 17.074.276 viviendas (Ref. AEAT: 18.069.370)
+
+1. MERCADO DEL ALQUILER DECLARADO (Módulo 8 - IRPF)
+  * Total contratos / inmuebles con alquiler declarado:        377.992 unidades
+    - Alquiler Habitual CONVERGENTE:                          2.333.149 viviendas (Ref. AEAT: 2.409.689)
+        · Declaradas con reducción art. 23.2:                 2.181.692 viviendas
+        · Reclasificadas con inquilino en VIVHAB ('V'):         151.457 viviendas
+      Alquiler medio mensual habitual (flujo anual / 12):       639,70 €/mes
+      Alquiler medio mensual habitual (anualizado AEAT):        688,77 €/mes (Ref. AEAT: 657 €)
+
+    - Alquiler No Habitual RESIDENCIAL CONVERGENTE:             297.473 viviendas (Ref. AEAT:   309.479)
+      Alquiler medio mensual no habitual (flujo anual / 12):    786,75 €/mes
+      Alquiler medio mensual no habitual (anualizado AEAT):    1.059,65 €/mes (Ref. AEAT: 1.361 €)
+
+    - Alquiler NO Residencial (plazas de garaje, trasteros):    702.481 unidades
+==================================================================
+
+  ```
