@@ -177,13 +177,13 @@ cat(sprintf("\nDias de contrato observados en submuestra de alquiler:  %s de %s 
             fmt_num(n_dias), fmt_num(n_alq), 100 * n_dias / n_alq))
 
 # ==============================================================================
-# 6. DISEÑO MUESTRAL (estratos TRAMO, conglomerados IDENHOG, pesos FACTORCAL)
+# 6. DISEÑO MUESTRAL (estratos TRAMO, conglomerados IDENPER, pesos FACTORCAL)
 # ==============================================================================
 # El factor de elevacion es del declarante; las magnitudes en viviendas usan el
 # coeficiente share (GWSM). Si la unidad ultima muestral fuese el declarante,
 # agrupar por hogar solo puede inflar las EE (inferencia conservadora).
-dt_design <- dt[!is.na(FACTORCAL) & !is.na(IDENHOG) & !is.na(TRAMO)]
-des <- svydesign(ids = ~IDENHOG, strata = ~TRAMO, weights = ~FACTORCAL,
+dt_design <- dt[!is.na(FACTORCAL) & !is.na(IDENPER) & !is.na(TRAMO)]
+des <- svydesign(ids = ~IDENPER, strata = ~TRAMO, weights = ~FACTORCAL,
                  data = dt_design, nest = TRUE)
 
 tot_se <- function(dom_expr, v = "share") {
@@ -234,7 +234,7 @@ masa_e <- svytotal(~INGRESOS_REALES,
 # ==============================================================================
 cat("==================================================================\n")
 cat("RESULTADOS DE INFERENCIA POBLACIONAL (GWSM: share x FACTORCAL)\n")
-cat("EE por linealizacion de Taylor (estratos TRAMO, conglomerados IDENHOG)\n")
+cat("EE por linealizacion de Taylor (estratos TRAMO, conglomerados IDENPER)\n")
 cat("==================================================================\n")
 cat(sprintf("Factor de elevacion medio (filas del panel):           %s\n",
             fmt_num(mean(dt$FACTORCAL, na.rm = TRUE), dec = 2)))

@@ -187,10 +187,10 @@ dt[, es_a_disp_fiscal := (
 )]
 
 # ==============================================================================
-# 7. DISEÑO MUESTRAL (estratos TRAMO, conglomerados IDENHOG, pesos FACTORCAL)
+# 7. DISEÑO MUESTRAL (estratos TRAMO, conglomerados IDENPER, pesos FACTORCAL)
 # ==============================================================================
-dt_design <- dt[!is.na(FACTORCAL) & !is.na(IDENHOG) & !is.na(TRAMO)]
-des <- svydesign(ids = ~IDENHOG, strata = ~TRAMO, weights = ~FACTORCAL,
+dt_design <- dt[!is.na(FACTORCAL) & !is.na(IDENPER) & !is.na(TRAMO)]
+des <- svydesign(ids = ~IDENPER, strata = ~TRAMO, weights = ~FACTORCAL,
                  data = dt_design, nest = TRUE)
 
 tot_se <- function(dom_expr, v = "share") {
@@ -247,7 +247,7 @@ total_decl      <- tot_se(dom_total_decl)
 # ==============================================================================
 cat("==================================================================\n")
 cat("RESULTADOS DE INFERENCIA POBLACIONAL (GWSM: share x FACTORCAL)\n")
-cat("EE por linealizacion de Taylor (estratos TRAMO, conglomerados IDENHOG)\n")
+cat("EE por linealizacion de Taylor (estratos TRAMO, conglomerados IDENPER)\n")
 cat("==================================================================\n")
 cat(sprintf("Factor de elevacion medio (filas del panel):           %s\n",
             fmt_num(mean(dt$FACTORCAL, na.rm = TRUE), dec = 2)))
