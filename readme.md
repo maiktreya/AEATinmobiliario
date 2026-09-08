@@ -253,7 +253,8 @@ Masa de ingresos por alquiler unida al panel:           26.488.589.414 (EE 156.6
       Renta media mensual habitual (anualizada AEAT):        734,67 (EE 4,18; CV 0,57%) EUR/mes (Ref. AEAT: 657 EUR)
     
     - WARNING: Alquiler VIV>1 sin señal fuerte con VIVLOC>VIV: 5.736 de 7.822
-    
+       Panel completo, VIV=1 sin señal fuerte con VIVLOC>VIV: 14.563 de 41.619
+
     - Alquiler No Habitual RESIDENCIAL (umbral 2.400 EUR/anual):
       Total:                                                297.473 (EE 4.161; CV 1,40%) viviendas (Ref. AEAT: 309.479)
       Renta media mensual no habitual (flujo anual / 12):     786,75 (EE 8,69; CV 1,11%) EUR/mes
